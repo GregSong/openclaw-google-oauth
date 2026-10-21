@@ -45,9 +45,13 @@ describe("buildApprovalRequest — which tools are gated", () => {
 });
 
 describe("buildApprovalRequest — how the dialog behaves", () => {
-  it("fails closed on timeout for every gated tool", () => {
+  it("explains an expired dialog instead of leaving it ambiguous", () => {
+    // OpenClaw returns a timeout as a blocked result; the wording has to stop
+    // the model from treating it as a transient failure and retrying.
     for (const toolName of GATED) {
-      expect(buildApprovalRequest(toolName, {})?.timeoutBehavior).toBe("deny");
+      const req = buildApprovalRequest(toolName, {});
+      expect(req?.timeoutReason).toMatch(/NOT performed/);
+      expect(req?.timeoutReason).toMatch(/[Dd]o not retry/);
     }
   });
 

@@ -21,7 +21,12 @@ export interface ApprovalRequirement {
   description: string;
   severity: ApprovalSeverity;
   timeoutMs: number;
-  timeoutBehavior: "allow" | "deny";
+  /**
+   * Shown when the dialog expires. OpenClaw 2026.10.x returns a timeout as a
+   * *blocked* tool result by design, so this only supplies the wording — there
+   * is deliberately no "allow on timeout" option to get wrong.
+   */
+  timeoutReason: string;
   allowedDecisions: ApprovalDecision[];
 }
 
@@ -56,8 +61,11 @@ function requirement(
     description,
     severity,
     timeoutMs: APPROVAL_TIMEOUT_MS,
-    // Fail closed: a missed dialog must not silently become a "yes".
-    timeoutBehavior: "deny",
+    // The host already fails closed on timeout; this text exists so the model
+    // does not read an expired dialog as "temporarily unavailable, retry".
+    timeoutReason:
+      "Approval expired without an answer — the action was NOT performed. " +
+      "Do not retry; ask the human whether they still want it.",
     allowedDecisions,
   };
 }
