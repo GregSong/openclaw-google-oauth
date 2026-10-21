@@ -74,9 +74,17 @@ describe("SKILL.md narrate-don't-call enforcement", () => {
   const { body } = parseFrontmatter(skillBody);
 
   it("includes a 'never narrate' rule near the top", () => {
-    // Should appear within the first 1500 characters of the body so the
-    // model sees it before the per-tool details.
-    expect(body.slice(0, 1500).toLowerCase()).toMatch(/never narrate|do not narrate|don't narrate/);
+    // Intent: the model should read the rule before it reads the per-tool
+    // detail tables. This used to be asserted as a 1500-char window, but
+    // v0.4.0 prepended the live-account warning and the operation-tiers table,
+    // which pushed the rule to ~2061 chars and broke the test. Assert the real
+    // relationship instead of a magic offset that shifts whenever the doc grows.
+    const ruleIndex = body.toLowerCase().search(/never narrate|do not narrate|don't narrate/);
+    const detailsIndex = body.indexOf("### Gmail");
+
+    expect(ruleIndex, "no anti-narration rule found in SKILL.md").toBeGreaterThan(-1);
+    expect(detailsIndex, "no per-tool details section found in SKILL.md").toBeGreaterThan(-1);
+    expect(ruleIndex).toBeLessThan(detailsIndex);
   });
 
   it("explicitly states that data changes between turns", () => {
