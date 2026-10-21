@@ -1,7 +1,7 @@
 import { google } from "googleapis";
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import type { OAuth2Client } from "google-auth-library";
 
 export interface AuthConfig {
@@ -98,7 +98,13 @@ export async function exchangeCode(
     );
   }
   const tokenPath = expandHome(config.tokenPath);
+  await mkdir(dirname(tokenPath), { recursive: true, mode: 0o700 });
   await writeFile(tokenPath, JSON.stringify(tokens, null, 2), { mode: 0o600 });
+  // `mode` above only applies when the file is *created*. If a token file
+  // already exists from an earlier version (or was copied in) with looser
+  // permissions, the write above would leave it world-readable. Tighten it
+  // explicitly on every write.
+  await chmod(tokenPath, 0o600);
   return {
     tokenPath,
     scopes: (tokens.scope ?? "").split(" ").filter(Boolean),
