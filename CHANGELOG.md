@@ -35,6 +35,19 @@ author's repository.
   `drive.about` (no new scope) and recorded in `<tokenPath>.meta.json`; a
   token for a different account is rejected unless `allowAccountChange` is
   set. `expectedAccount` pins the address explicitly.
+- **`feat(approval)`: host-enforced approval for irreversible tools.** The
+  SKILL.md operation tiers were prompt-level doctrine, which a prompt
+  injection can argue away. A `before_tool_call` hook now returns
+  `requireApproval` for email send, Drive sharing, mail/file trash and
+  calendar event deletion (plus `gmail_message_modify` when it adds `TRASH`),
+  so OpenClaw suspends the call and asks the human — with the concrete
+  recipient/file/event in the dialog. Send and share are `critical` and
+  allow-once only; trash/delete are `warning` and permit `allow-always`. A
+  timeout denies. Disable with `approvalPolicy: "off"`.
+
+  Note: this path is available to non-bundled plugins (only
+  `registerTrustedToolPolicy` is bundled-gated), so it works for a
+  ClawHub/local install.
 
 ### Added
 

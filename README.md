@@ -175,8 +175,29 @@ The plugin reads two values from its OpenClaw config block:
 |---|---|---|
 | `credentialsPath` | `~/.openclaw/secrets/gmail-credentials.json` | Path to the OAuth client JSON from Google Cloud Console. |
 | `tokenPath` | `~/.openclaw/secrets/gmail-token.json` | Path where the refresh-token-bearing token file is written + read. |
+| `expectedAccount` | *(unset)* | Optional pin. If set, the OAuth flow refuses to store a token for any other Google account. |
+| `allowAccountChange` | `false` | Allow re-authorization to replace the token with one for a **different** account. Leave false — that is what blocks a silent account swap. |
+| `approvalPolicy` | `confirm` | `confirm` makes OpenClaw require human approval before email send, Drive sharing, trashing mail/files, and calendar event deletion. `off` disables the prompt. |
 
 Tilde expansion (`~/`) is supported.
+
+### Human approval for irreversible actions
+
+The five irreversible tools — `gmail_message_send`, `drive_permission_create`,
+`gmail_message_trash`, `drive_file_trash`, `calendar_event_delete` — and
+`gmail_message_modify` when it adds the `TRASH` label, are gated by a
+`before_tool_call` hook. OpenClaw suspends the call, shows the human the exact
+target (recipient + subject, or file + collaborator + role, or the event id), and
+only proceeds on an explicit approval. A missed dialog **denies**, it does not
+proceed.
+
+This matters because the SKILL.md operation tiers are prompt-level doctrine: a
+prompt injection in an email or document can talk the model out of them. It
+cannot answer a host approval dialog. That is the difference between a rule the
+model is asked to follow and one it cannot satisfy on its own.
+
+Set `approvalPolicy: "off"` only if you understand that trade — with it off, an
+injection can send mail and share files unattended.
 
 ## Scopes requested
 

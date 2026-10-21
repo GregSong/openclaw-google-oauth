@@ -10,6 +10,7 @@ import {
 } from "./auth.js";
 import { encodeRfc2822 } from "./email.js";
 import { neutralizeFormulaCells } from "./sheets.js";
+import { buildApprovalRequest } from "./approval.js";
 
 const configSchema = Type.Object({
   credentialsPath: Type.String({
@@ -34,6 +35,13 @@ const configSchema = Type.Object({
         "Allow re-authorization to replace the token with one for a different Google account. Leave false — the default blocks silent account swaps.",
     })
   ),
+  approvalPolicy: Type.Optional(
+    Type.Union([Type.Literal("confirm"), Type.Literal("off")], {
+      default: "confirm",
+      description:
+        "confirm (default) makes the host require human approval before sending email, sharing a Drive file, trashing mail/files, or deleting a calendar event. Set to off only if you understand that a prompt injection could then perform those actions unattended.",
+    })
+  ),
 });
 
 interface PluginConfig {
@@ -41,6 +49,7 @@ interface PluginConfig {
   tokenPath: string;
   expectedAccount?: string;
   allowAccountChange?: boolean;
+  approvalPolicy?: "confirm" | "off";
 }
 
 function authConfig(config: PluginConfig): AuthConfig {
@@ -52,7 +61,7 @@ function authConfig(config: PluginConfig): AuthConfig {
   };
 }
 
-export default defineToolPlugin({
+const plugin = defineToolPlugin({
   id: "tangleclaw-google-oauth",
   name: "TangleClaw Google OAuth",
   description:
@@ -708,3 +717,33 @@ export default defineToolPlugin({
     }),
   ],
 });
+
+/**
+ * Wrap tool registration with one extra host hook.
+ *
+ * The hook is what makes the SKILL.md operation tiers enforceable: it asks the
+ * host to require human approval before any irreversible call, and the model
+ * cannot answer that prompt itself.
+ *
+ * `register` is wrapped in place rather than by exporting a spread copy, so the
+ * module's default export keeps the exact `DefinedToolPluginEntry` type —
+ * including the metadata symbol the plugin-sdk helpers and the test suite read.
+ */
+const registerTools = plugin.register;
+plugin.register = (api) => {
+  registerTools(api);
+
+  const policy = (api.pluginConfig as { approvalPolicy?: string } | undefined)
+    ?.approvalPolicy;
+  if (policy === "off") return;
+
+  api.on("before_tool_call", (event) => {
+    const approval = buildApprovalRequest(
+      event.toolName,
+      (event.params ?? {}) as Record<string, unknown>
+    );
+    return approval ? { requireApproval: approval } : undefined;
+  });
+};
+
+export default plugin;
