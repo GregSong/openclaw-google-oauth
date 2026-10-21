@@ -137,20 +137,23 @@ Copy the `authUrl` value.
   Look at the URL in your browser's address bar. It'll look like:
 
   ```
-  http://localhost/?iss=https://accounts.google.com&code=4/0AeoWuM-xxxxxxxxxxxxxxxxxxxxxxxxxxxx&scope=https://www.googleapis.com/auth/...
+  http://localhost/?iss=https://accounts.google.com&code=4/0AeoWuM-xxxxxxxxxxxxxxxxxxxxxxxxxxxx&state=Zm9v...&scope=https://www.googleapis.com/auth/...
   ```
 
-  The piece you need is the `code=` value — everything between `code=` and the next `&`. Copy just that string (a long string starting with `4/0`).
+  **Copy the entire URL** — not just the `code=` value. The `state=` parameter is one-time and expires after 10 minutes; it is what prevents an authorization code that did not come from your own `google_auth_start` from being accepted.
 
-**Step 6.** Call `google_auth_complete` with `code: "<the value you copied>"`. The tool writes a refresh-token-bearing token file to `~/.openclaw/secrets/gmail-token.json` (or wherever you set `tokenPath`) and returns:
+**Step 6.** Call `google_auth_complete` with `code: "<the full URL>"`. The tool writes a refresh-token-bearing token file to `~/.openclaw/secrets/gmail-token.json` (or wherever you set `tokenPath`) and returns:
 
 ```json
 {
   "ok": true,
   "tokenPath": "/home/.../.openclaw/secrets/gmail-token.json",
-  "scopes": ["https://www.googleapis.com/auth/gmail.modify", ...]
+  "scopes": ["https://www.googleapis.com/auth/gmail.modify", ...],
+  "account": "you@example.com"
 }
 ```
+
+The plugin records the authorized account alongside the token (`gmail-token.json.meta.json`) and afterwards refuses an authorization for a *different* account, so an injected instruction cannot silently switch the plugin onto somebody else's Google account. Set the optional `expectedAccount` config value to pin it to one specific address.
 
 That's it — the token is in place and every other tool in this plugin (`gmail_messages_list`, `calendar_event_create`, etc.) will use it automatically.
 
@@ -249,7 +252,7 @@ While the OAuth app is in **Testing** status (the default after the initial setu
 
 ### Option A — Re-run the OAuth dance weekly (free, manual)
 
-Call `google_auth_start` from the agent, open the URL it returns, paste the `code=` value back via `google_auth_complete`. Done in ~30 seconds. Has to happen every week. Acceptable for a hobby setup; unworkable for unattended automation.
+Call `google_auth_start` from the agent, open the URL it returns, paste the full redirect URL back via `google_auth_complete`. Done in ~30 seconds. Has to happen every week. Acceptable for a hobby setup; unworkable for unattended automation.
 
 ### Option B — Publish the OAuth app (one-time, then refresh tokens live indefinitely) ← recommended
 
@@ -268,7 +271,7 @@ The security boundary is still your `gmail-token.json` file on your machine (mod
 4. A "Push to production?" modal appears. Click **Confirm**.
 5. Google flags Gmail scopes as "restricted" — this is normal for `gmail.modify` and `gmail.send`. **For single-user self-use, no formal verification is required.** Acknowledge any restricted-scope notice and proceed.
 6. Status now reads **In production**.
-7. **Re-run the OAuth dance one more time** to get a fresh, indefinite-lifetime refresh token: call `google_auth_start`, open the URL, sign in, copy the `code=` value, call `google_auth_complete`. The new token replaces the old 7-day one.
+7. **Re-run the OAuth dance one more time** to get a fresh, indefinite-lifetime refresh token: call `google_auth_start`, open the URL, sign in, copy the full redirect URL, call `google_auth_complete`. The new token replaces the old 7-day one.
 8. Verify: <https://myaccount.google.com/permissions> — your app should be listed under "Apps with access to your account" with no expiry note.
 
 After step 7, the token lives until you explicitly revoke it from the page in step 8.

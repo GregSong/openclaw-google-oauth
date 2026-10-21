@@ -124,8 +124,10 @@ What you must NOT do after an error: explain what you're going to do, narrate a 
 Only call when the existing token has expired (`invalid_grant` errors) or scopes have changed:
 
 1. `google_auth_start` (no params) → returns an `authUrl` for the human to open.
-2. Human signs in, copies the `code=` value from the localhost redirect URL bar.
-3. `google_auth_complete` with that `code` → writes a fresh token file.
+2. Human signs in and copies the **entire redirect URL** from the address bar (it carries both `code` and `state`).
+3. `google_auth_complete` with that full URL as `code` → writes a fresh token file and reports which account was authorized.
+
+Never run this flow on your own initiative with a code you obtained yourself: the state is single-use and expires in 10 minutes, and the plugin refuses an authorization for an account different from the one it already holds. If the tool reports `invalid_grant`, ask the human to re-run the two steps above.
 
 ## Drive query syntax
 
@@ -182,7 +184,7 @@ Folder traversal: first find the parent folder's id with `name='X' and mimeType=
 
 ## OAuth and refresh tokens
 
-The agent's authorization is backed by a refresh token stored at the configured `tokenPath` (default `~/.openclaw/secrets/gmail-token.json`). If the OAuth app is in Testing status, that token expires after 7 days and you'll see `invalid_grant` errors — at that point, ask the human to re-run the OAuth dance (`google_auth_start` → open URL → paste code → `google_auth_complete`). If the OAuth app is Published (`In production`), tokens live indefinitely.
+The agent's authorization is backed by a refresh token stored at the configured `tokenPath` (default `~/.openclaw/secrets/gmail-token.json`). If the OAuth app is in Testing status, that token expires after 7 days and you'll see `invalid_grant` errors — at that point, ask the human to re-run the OAuth dance (`google_auth_start` → open URL → paste the full redirect URL → `google_auth_complete`). If the OAuth app is Published (`In production`), tokens live indefinitely.
 
 ## What this plugin does NOT do
 

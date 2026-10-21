@@ -21,12 +21,34 @@ const configSchema = Type.Object({
     default: "~/.openclaw/secrets/gmail-token.json",
     description: "Path where the refresh token will be written + read.",
   }),
+  expectedAccount: Type.Optional(
+    Type.String({
+      description:
+        "Optional security pin. If set, google_auth_complete refuses to store a token unless the authorized Google account matches this email address.",
+    })
+  ),
+  allowAccountChange: Type.Optional(
+    Type.Boolean({
+      default: false,
+      description:
+        "Allow re-authorization to replace the token with one for a different Google account. Leave false — the default blocks silent account swaps.",
+    })
+  ),
 });
 
-function authConfig(config: { credentialsPath: string; tokenPath: string }): AuthConfig {
+interface PluginConfig {
+  credentialsPath: string;
+  tokenPath: string;
+  expectedAccount?: string;
+  allowAccountChange?: boolean;
+}
+
+function authConfig(config: PluginConfig): AuthConfig {
   return {
     credentialsPath: config.credentialsPath,
     tokenPath: config.tokenPath,
+    expectedAccount: config.expectedAccount,
+    allowAccountChange: config.allowAccountChange,
   };
 }
 
@@ -45,11 +67,12 @@ export default defineToolPlugin({
         "Start a fresh Google OAuth authorization flow. Returns a URL the human must open in a browser to grant access. Only call this if the existing token has expired (invalid_grant errors) or if scopes need to be widened. Reads OAuth client credentials from configured credentialsPath.",
       parameters: Type.Object({}),
       async execute(_params, config) {
-        const url = await buildAuthUrl(authConfig(config));
+        const { authUrl, state } = await buildAuthUrl(authConfig(config));
         return {
-          authUrl: url,
+          authUrl,
+          state,
           instructions:
-            "Open authUrl in a browser, sign in with the target Google account, click through any 'unverified app' warning, grant the requested scopes, and copy the `code` query parameter from the redirected URL. Then call google_auth_complete with that code.",
+            "Open authUrl in a browser, sign in with the target Google account, click through any 'unverified app' warning and grant the requested scopes. The browser then lands on a localhost URL that may show an error — that is expected. Copy the ENTIRE URL from the address bar (it contains both code and state) and pass it to google_auth_complete. The link is valid for 10 minutes and can be used once.",
         };
       },
     }),
@@ -57,18 +80,26 @@ export default defineToolPlugin({
       name: "google_auth_complete",
       label: "Complete Google OAuth",
       description:
-        "Finish Google OAuth authorization by exchanging the authorization code (the `code=` value from the redirect after google_auth_start) for an access + refresh token. Writes the token file so other Google tools can use it.",
+        "Finish Google OAuth authorization by exchanging the redirect from google_auth_start for an access + refresh token. Pass the FULL redirected URL (preferred — it carries code and state) or the bare `code` together with `state`. Writes the token file so other Google tools can use it. Refuses the exchange if the state is missing/expired/already used, or if the authorized account differs from the one this plugin previously authorized.",
       parameters: Type.Object({
         code: Type.String({
-          description: "The `code` query parameter returned by Google after consent.",
+          description:
+            "The full URL the browser was redirected to (preferred), or just the `code` query parameter. A bare code requires `state` as well.",
         }),
+        state: Type.Optional(
+          Type.String({
+            description:
+              "The `state` returned by google_auth_start. Only needed when `code` is a bare code rather than the full redirect URL.",
+          })
+        ),
       }),
-      async execute({ code }, config) {
-        const result = await exchangeCode(authConfig(config), code);
+      async execute({ code, state }, config) {
+        const result = await exchangeCode(authConfig(config), code, state);
         return {
           ok: true,
           tokenPath: result.tokenPath,
           scopes: result.scopes,
+          account: result.account,
         };
       },
     }),

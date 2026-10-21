@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+Fork-local hardening pass. Not upstreamed; `main` here diverges from the
+author's repository.
+
+- **`fix(email)`: CRLF header injection in `gmail_message_send`.** `to`, `cc`,
+  `bcc`, `replyTo` and `subject` were interpolated into header lines verbatim,
+  so a subject containing `\r\nBcc: …` silently added a recipient. Header
+  values now reject CR/LF/NUL outright, address fields are split with a
+  quote/angle-bracket-aware parser and each entry must parse as a real
+  address. (CWE-93)
+- **`fix(auth)`: token file permissions.** `writeFile({ mode: 0o600 })` only
+  applies on creation, so a pre-existing token file could stay 0644 despite
+  the README's promise. Now chmod'd on every write, and the parent directory
+  is created 0700.
+- **`fix(sheets)`: formula injection in `sheets_values_append`.** The default
+  `valueInputOption` was `USER_ENTERED`, letting Google evaluate
+  `=`-prefixed cells server-side and exfiltrate the sheet via
+  `=IMPORTRANGE`/`=IMAGE`. Default is now `RAW`; `USER_ENTERED` remains an
+  opt-in and escapes OWASP's CSV-injection trigger set for string cells.
+  (CWE-1236)
+- **`feat(auth)`: OAuth `state` and account binding.** `google_auth_start`
+  now mints a single-use, 10-minute `state`; `google_auth_complete` requires
+  it (paste the full redirect URL) and refuses an unknown/expired/replayed
+  value. After the exchange the authorized account is resolved via
+  `drive.about` (no new scope) and recorded in `<tokenPath>.meta.json`; a
+  token for a different account is rejected unless `allowAccountChange` is
+  set. `expectedAccount` pins the address explicitly.
+
+### Added
+
+- Dependabot config (grouped npm + actions updates) and a `security-audit`
+  workflow gating production dependencies at `--audit-level=high`.
+
+### Changed
+
+- `buildAuthUrl` / `exchangeCode` signatures: the former returns
+  `{ authUrl, state }`, the latter takes the full redirect URL. Both are
+  used by `scripts/oauth-setup.mjs`, which is updated.
+
+### Fixed
+
+- `src/skills.test.ts` was red on the v0.4.0 tag itself: its 1500-character
+  window was invalidated by the new prose above `Rule zero`. It now asserts
+  the rule precedes the per-tool detail tables, which is what its comment
+  always described.
+
 ## [0.4.0] — 2026-07-06
 
 ### Changed

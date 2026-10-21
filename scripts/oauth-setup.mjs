@@ -32,32 +32,36 @@ async function main() {
   console.log("Will write token to:    ", config.tokenPath);
   console.log();
 
-  const url = await buildAuthUrl(config);
+  const { authUrl } = await buildAuthUrl(config);
   console.log("1. Open this URL in a browser:");
   console.log();
-  console.log("   " + url);
+  console.log("   " + authUrl);
   console.log();
   console.log("2. Sign in with the target Google account.");
   console.log("3. Click through any 'Google hasn't verified this app' warning.");
   console.log("4. Grant access to all requested scopes.");
   console.log("5. You'll be redirected to a localhost URL that may show an error — that's fine.");
-  console.log("6. From the URL bar, copy the value of the `code=` query parameter (everything between `code=` and the next `&`, URL-decoded).");
+  console.log("6. Copy the ENTIRE URL from the address bar (not just the code — the URL");
+  console.log("   carries the one-time state value that this flow requires).");
+  console.log();
+  console.log("   The link is valid for 10 minutes and can be used once.");
   console.log();
 
   const rl = createInterface({ input: stdin, output: stdout });
-  const code = (await rl.question("Paste the code here: ")).trim();
+  const redirect = (await rl.question("Paste the full redirected URL here: ")).trim();
   rl.close();
 
-  if (!code) {
-    console.error("ERROR: no code provided.");
+  if (!redirect) {
+    console.error("ERROR: nothing provided.");
     process.exit(1);
   }
 
   console.log();
   console.log("Exchanging code for tokens...");
-  const result = await exchangeCode(config, code);
+  const result = await exchangeCode(config, redirect);
   console.log();
   console.log("Success.");
+  console.log("Account:         ", result.account);
   console.log("Token written to:", result.tokenPath);
   console.log("Granted scopes:");
   for (const scope of result.scopes) console.log("  -", scope);
