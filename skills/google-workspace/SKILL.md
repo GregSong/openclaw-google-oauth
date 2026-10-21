@@ -110,7 +110,7 @@ What you must NOT do after an error: explain what you're going to do, narrate a 
 | Create a new Google Sheet | `sheets_create` | Returns `spreadsheetId` + URL. Empty workbook with one sheet ("Sheet1"). |
 | List sheet/tab names | `sheets_get` | Returns metadata only, not cell values. |
 | Read cell values | `sheets_values_get` | A1 notation: `Sheet1!A1:C10` (range), `Sheet1!A:A` (column), `Sheet1` (all data). |
-| Add rows of data | `sheets_values_append` | `values` is a 2D array, each inner array = one row. Use after `sheets_create` to populate. |
+| Add rows of data | `sheets_values_append` | `values` is a 2D array, each inner array = one row. Cells are written verbatim (`valueInputOption: RAW`) by default. Only pass `valueInputOption: USER_ENTERED` when the content is **trusted and meant to be a formula** — never for text copied out of an email, doc, or web page, because Google evaluates `=`-prefixed cells server-side. |
 
 ### Slides
 

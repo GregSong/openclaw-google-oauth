@@ -9,6 +9,7 @@ import {
   withTimeout,
 } from "./auth.js";
 import { encodeRfc2822 } from "./email.js";
+import { neutralizeFormulaCells } from "./sheets.js";
 
 const configSchema = Type.Object({
   credentialsPath: Type.String({
@@ -601,7 +602,7 @@ export default defineToolPlugin({
       name: "sheets_values_append",
       label: "Append Sheet Values",
       description:
-        "Append / add rows of data to a Google Sheet. `values` is a 2D array — each inner array is one row of cells. Use after sheets_create to populate a new spreadsheet, or to log new rows into an existing sheet.",
+        "Append / add rows of data to a Google Sheet. `values` is a 2D array — each inner array is one row of cells. Use after sheets_create to populate a new spreadsheet, or to log new rows into an existing sheet. Values are written verbatim by default (valueInputOption=RAW). Pass valueInputOption=USER_ENTERED only when the cells are TRUSTED and you want Google to interpret them as formulas/dates/numbers; string cells that start with = + - @ TAB or CR are then prefixed with an apostrophe so untrusted content cannot execute as a formula.",
       parameters: Type.Object({
         spreadsheetId: Type.String(),
         range: Type.String({ description: "A1 notation (e.g. 'Sheet1!A1')." }),
@@ -609,19 +610,24 @@ export default defineToolPlugin({
         valueInputOption: Type.Optional(
           Type.Union(
             [Type.Literal("RAW"), Type.Literal("USER_ENTERED")],
-            { default: "USER_ENTERED" }
+            { default: "RAW" }
           )
         ),
       }),
       async execute(params, config) {
         const auth = await createOAuthClient(authConfig(config));
         const sheets = google.sheets({ version: "v4", auth });
+        const valueInputOption = params.valueInputOption ?? "RAW";
+        const values =
+          valueInputOption === "USER_ENTERED"
+            ? neutralizeFormulaCells(params.values)
+            : params.values;
         const res = await withTimeout(
           sheets.spreadsheets.values.append({
             spreadsheetId: params.spreadsheetId,
             range: params.range,
-            valueInputOption: params.valueInputOption ?? "USER_ENTERED",
-            requestBody: { values: params.values },
+            valueInputOption,
+            requestBody: { values },
           }),
           "sheets.spreadsheets.values.append"
         );
