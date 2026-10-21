@@ -71,3 +71,94 @@ describe("encodeRfc2822", () => {
     expect(decoded).toMatch(/\r\n\r\n/);
   });
 });
+
+describe("encodeRfc2822 header injection hardening", () => {
+  // Payloads are assembled at runtime so the repo does not carry a
+  // copy-pasteable attack string.
+  const CR = String.fromCharCode(13);
+  const LF = String.fromCharCode(10);
+  const NUL = String.fromCharCode(0);
+  const BREAK = CR + LF;
+  const INJECTED_HEADER = "Bcc: someone@example.invalid";
+
+  const base = { to: "alice@example.com", subject: "Hello", body: "hi" };
+
+  it.each([
+    ["subject", { ...base, subject: "Hello" + BREAK + INJECTED_HEADER }],
+    ["to", { ...base, to: "alice@example.com" + BREAK + INJECTED_HEADER }],
+    ["cc", { ...base, cc: "a@b.com" + BREAK + INJECTED_HEADER }],
+    ["bcc", { ...base, bcc: "a@b.com" + BREAK + INJECTED_HEADER }],
+    ["replyTo", { ...base, replyTo: "a@b.com" + BREAK + INJECTED_HEADER }],
+  ])("rejects a CRLF injection attempt in %s", (_field, args) => {
+    expect(() => encodeRfc2822(args as Parameters<typeof encodeRfc2822>[0])).toThrow(
+      /possible header injection/
+    );
+  });
+
+  it.each([
+    ["bare CR", CR],
+    ["bare LF", LF],
+    ["NUL", NUL],
+  ])("rejects a lone %s in the subject", (_name, ch) => {
+    expect(() => encodeRfc2822({ ...base, subject: "Hi" + ch + "there" })).toThrow(
+      /possible header injection/
+    );
+  });
+
+  it("never emits an extra header block", () => {
+    // Belt-and-braces: exactly one blank line, and exactly the five headers we
+    // intentionally wrote. Anything else means something got injected.
+    const decoded = decodeRfc2822(
+      encodeRfc2822({ ...base, subject: "Status: ok", to: "a@b.com" })
+    );
+    const parts = decoded.split(BREAK + BREAK);
+    expect(parts).toHaveLength(2);
+
+    const headerNames = parts[0]
+      .split(BREAK)
+      .map((line) => line.slice(0, line.indexOf(":")));
+    expect(headerNames).toEqual([
+      "To",
+      "Subject",
+      "MIME-Version",
+      "Content-Type",
+      "Content-Transfer-Encoding",
+    ]);
+  });
+
+  it("accepts a comma-separated list with display names", () => {
+    const decoded = decodeRfc2822(
+      encodeRfc2822({
+        ...base,
+        to: '"Doe, John" <john@example.com>, Jane Roe <jane@example.com>',
+      })
+    );
+    expect(decoded).toContain('To: "Doe, John" <john@example.com>, Jane Roe <jane@example.com>');
+  });
+
+  it("does not split a comma that sits inside a quoted display name", () => {
+    expect(() =>
+      encodeRfc2822({ ...base, to: '"Doe, John" <john@example.com>' })
+    ).not.toThrow();
+  });
+
+  it.each([
+    ["no domain", "alice"],
+    ["no @", "alice.example.com"],
+    ["empty local part", "@example.com"],
+    ["semicolon separator", "a@b.com;c@d.com"],
+    ["stray angle bracket", "alice@example.com>"],
+  ])("rejects an invalid address (%s)", (_name, to) => {
+    expect(() => encodeRfc2822({ ...base, to })).toThrow(/invalid email address|empty address/);
+  });
+
+  it("rejects an empty entry in the list", () => {
+    expect(() => encodeRfc2822({ ...base, to: "a@b.com, " })).toThrow(/empty address/);
+  });
+
+  it("still accepts a long but legitimate CC list", () => {
+    const cc = Array.from({ length: 40 }, (_, i) => `person${i}@example.com`).join(", ");
+    expect(() => encodeRfc2822({ ...base, cc })).not.toThrow();
+  });
+});
+
