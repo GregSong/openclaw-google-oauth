@@ -436,7 +436,7 @@ const plugin = defineToolPlugin({
       name: "drive_permission_create",
       label: "Share Drive File",
       description:
-        "Share a Google Drive file, folder, Doc, Sheet, or Slides presentation with another person by email address. Role: `reader` (view only), `commenter` (view + comment), or `writer` (full edit).",
+        "Share a Google Drive file, folder, Doc, Sheet, or Slides presentation with another person by email address. Role: `reader` (view only), `commenter` (view + comment), or `writer` (full edit). Works only on files this plugin itself created — sharing a pre-existing file fails with a 403 permission error by design, so do not retry it: tell the user to share that file from the Drive UI.",
       parameters: Type.Object({
         fileId: Type.String(),
         emailAddress: Type.String(),
@@ -478,7 +478,7 @@ const plugin = defineToolPlugin({
       name: "drive_file_trash",
       label: "Trash Drive File",
       description:
-        "DELETE / TRASH / REMOVE a Google Drive file, folder, Doc, Sheet, or Slides presentation by id. Moves the file to Drive's Trash — recoverable for 30 days, then auto-purged by Google. Use this to clean up files this app created. (For an immediate permanent delete, manage from Drive UI or call this and empty the trash there.)",
+        "DELETE / TRASH / REMOVE a Google Drive file, folder, Doc, Sheet, or Slides presentation by id. Moves the file to Drive's Trash — recoverable for 30 days, then auto-purged by Google. Works only on files this plugin itself created (docs_create / sheets_create / slides_create, or anything uploaded by it); trashing a pre-existing file fails with a 403 permission error by design. If that happens, do not retry and do not look for a workaround — tell the user the file has to be deleted from the Drive UI.",
       parameters: Type.Object({
         fileId: Type.String({ description: "Drive file id (from drive_files_list or the corresponding create tool's response)." }),
       }),

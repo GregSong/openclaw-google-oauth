@@ -63,12 +63,22 @@ describe("SCOPES", () => {
     expect(SCOPES).not.toContain("https://www.googleapis.com/auth/gmail.readonly");
   });
 
-  it("requests full drive scope (so shared folders/files are visible)", () => {
-    expect(SCOPES).toContain("https://www.googleapis.com/auth/drive");
-    // drive.file is intentionally NOT requested — it only lets the app see
-    // files it created itself, not files merely shared with the account.
-    // That broke the "sharer controls access via Drive ACLs" mental model.
-    expect(SCOPES).not.toContain("https://www.googleapis.com/auth/drive.file");
+  it("splits Drive into read-everything + mutate-only-our-own", () => {
+    // Browsing the whole Drive (own files + files shared with the account)
+    // needs a read scope; the account-wide `drive` scope would also hand the
+    // agent delete/share power over every pre-existing file.
+    expect(SCOPES).toContain("https://www.googleapis.com/auth/drive.readonly");
+    expect(SCOPES).toContain("https://www.googleapis.com/auth/drive.file");
+    expect(SCOPES).not.toContain("https://www.googleapis.com/auth/drive");
+  });
+
+  it("keeps the per-API scopes so existing docs/sheets/slides stay editable", () => {
+    // drive.file alone would make docs_append_text / sheets_values_append fail
+    // on files the user created by hand; these three scopes are account-wide
+    // and carry content edits.
+    expect(SCOPES).toContain("https://www.googleapis.com/auth/documents");
+    expect(SCOPES).toContain("https://www.googleapis.com/auth/spreadsheets");
+    expect(SCOPES).toContain("https://www.googleapis.com/auth/presentations");
   });
 });
 

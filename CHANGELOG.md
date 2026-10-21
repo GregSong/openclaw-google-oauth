@@ -48,6 +48,29 @@ author's repository.
   Note: this path is available to non-bundled plugins (only
   `registerTrustedToolPolicy` is bundled-gated), so it works for a
   ClawHub/local install.
+- **`fix(auth)`: replaced the account-wide `auth/drive` scope.** The plugin
+  asked for "see, edit, create, and delete **all** of your Google Drive
+  files", which is far more than any of its tools need and made every
+  pre-existing file deletable and shareable by a misled agent. Drive is now
+  split into:
+
+  - `auth/drive.readonly` — read and download everything, so browsing and
+    reading still work, and a wrong `fileId` can only reveal something.
+  - `auth/drive.file` — create/edit/delete **only files this app created**.
+
+  The union is "read anything, mutate only our own". Google enforces it, so
+  `drive_file_trash` / `drive_permission_create` now return 403 on
+  pre-existing files regardless of what the model decides. The boundary is
+  drawn on who *created* the file, not who owns it: a document the user built
+  by hand is read-only to this plugin.
+
+  Content edits of existing Docs/Sheets/Slides still work through the
+  per-API scopes, which Google does not narrow per file — this removes
+  file-level destruction, not content mutation.
+
+  **Breaking for existing installs:** a token keeps the scopes it was granted
+  with. Switching requires revoking at myaccount.google.com/permissions and
+  re-running the OAuth dance, otherwise the old broad token stays in force.
 
 ### Added
 

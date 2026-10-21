@@ -18,11 +18,28 @@ export const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/calendar.events",
-  // Full Drive scope (not drive.file) so the agent can see folders + files
-  // shared with the authorized account, not only files it created itself.
-  // Per-file ACLs still apply: shared-as-reader is read-only,
-  // shared-as-writer is read+write, files the app owns are full access.
-  "https://www.googleapis.com/auth/drive",
+  // Drive is deliberately split in two instead of requesting the account-wide
+  // `auth/drive` scope:
+  //
+  //   drive.readonly — see and download everything, so the agent can still
+  //                    browse the account's own and shared files. Read-only
+  //                    means a wrong or injected fileId can at worst reveal
+  //                    something, never destroy it.
+  //   drive.file     — create/edit/delete *only* files this app itself
+  //                    created. Google enforces this, so destructive
+  //                    operations (trash, permissions.create) on a
+  //                    pre-existing file fail with 403 no matter what the
+  //                    model decides to do.
+  //
+  // The union is "read anything, mutate only what we made". Note the split is
+  // by *who created the file*, not by owner: a document the user built by hand
+  // is therefore read-only to this plugin.
+  //
+  // Content-level edits of existing Google Docs/Sheets/Slides are still
+  // allowed through the documents/spreadsheets/presentations scopes below —
+  // those are account-wide by design and cannot be narrowed per file.
+  "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/drive.file",
   "https://www.googleapis.com/auth/documents",
   "https://www.googleapis.com/auth/spreadsheets",
   "https://www.googleapis.com/auth/presentations",

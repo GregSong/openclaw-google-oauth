@@ -33,12 +33,13 @@ If you must point this at an existing personal-ish account, fork the plugin and 
 
 | Default scope | Narrower option | Trade-off |
 |---|---|---|
-| `auth/drive` | `auth/drive.readonly` | Agent can READ everything in Drive (including shared folders) but cannot edit, move, delete, or upload. Drive write-back tools will fail. |
-| `auth/drive` | `auth/drive.file` | Agent only sees files it created itself + files picked via Google Picker. Cannot see arbitrary shared folders (the original problem we widened scope to fix — only use if you don't need shared-folder access). |
+| `auth/drive.readonly` + `auth/drive.file` | `auth/drive.file` only | Drops the read half, so Drive browsing stops working: the agent would see only files it created. Maximum containment, minimum usefulness. |
 | `auth/gmail.modify` | `auth/gmail.readonly` | Agent can read inbox but cannot star, label, archive, or trash. Send is unaffected (uses `gmail.send`). |
 | `auth/gmail.send` | _(remove)_ | Agent cannot send mail at all. |
 | `auth/calendar.events` | _(remove)_ | Agent cannot read or write calendar. |
 | _(all docs/sheets/slides scopes)_ | _(remove individually)_ | Agent cannot create/read/edit that file type. The corresponding tools will fail with `insufficient permission`. |
+
+Drive is already at the narrower of the two settings by default — the destructive half (`trash`, `share` on pre-existing files) is not granted at all, and Google refuses it. Go to `auth/drive.file` alone only if you are willing to lose Drive browsing.
 
 After editing `SCOPES`, rebuild (`npm run build`), re-deploy to your OpenClaw install, and **re-run the OAuth dance** to pick up the new scope set. Re-auth is mandatory after any scope change — the existing token bakes in the old scope list and Google will refuse new requests against scopes you've now removed.
 
@@ -205,13 +206,35 @@ injection can send mail and share files unattended.
 https://www.googleapis.com/auth/gmail.modify
 https://www.googleapis.com/auth/gmail.send
 https://www.googleapis.com/auth/calendar.events
-https://www.googleapis.com/auth/drive
+https://www.googleapis.com/auth/drive.readonly
+https://www.googleapis.com/auth/drive.file
 https://www.googleapis.com/auth/documents
 https://www.googleapis.com/auth/spreadsheets
 https://www.googleapis.com/auth/presentations
 ```
 
-**Full `drive` scope** is requested intentionally so the agent can see and act on folders/files shared *with* the authorized account, not just files it created itself. The natural permission model still applies: per-file Drive ACLs decide what the agent can actually do (shared-as-reader = read-only, shared-as-writer = read+write, files the agent owns = full control). If you want to restrict the plugin to only files it created, fork and swap `drive` for `drive.file` in `src/auth.ts`.
+**Drive is split into two scopes instead of the account-wide `auth/drive`:**
+
+| Scope | Grants | Why |
+|---|---|---|
+| `auth/drive.readonly` | See and download **everything** — your files and files shared with you | Keeps Drive browsing (`drive_files_list`, `drive_file_get`) useful. Read-only, so a wrong or injected `fileId` can at worst reveal something. |
+| `auth/drive.file` | Create/edit/delete **only files this app itself created** | Google enforces the boundary, so `drive_file_trash` and `drive_permission_create` return 403 on any pre-existing file — no matter what the model decides to do. |
+
+The union reads as: **read anything, mutate only what the plugin made.** The line
+is drawn on *who created the file*, not on ownership — a document you built by
+hand in Drive is read-only to this plugin even though it is yours.
+
+What still works on files you created yourself: creating Docs/Sheets/Slides, and
+editing their **contents** through `docs_append_text` / `sheets_values_append`.
+Those go through the per-API scopes (`documents`, `spreadsheets`,
+`presentations`), which Google does not narrow per file. So this is not a content
+sandbox — it removes file-level destruction (delete, move, share), not content
+mutation.
+
+**Changing scopes forces re-authorization.** A token keeps the scope list it was
+granted with, so after switching from `auth/drive` to this pair you must revoke
+at [myaccount.google.com/permissions](https://myaccount.google.com/permissions)
+and re-run the OAuth dance — otherwise the old broad token stays in force.
 
 ## Skills (shipped with the plugin)
 

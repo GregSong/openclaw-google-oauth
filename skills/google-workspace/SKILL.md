@@ -109,8 +109,22 @@ What you must NOT do after an error: explain what you're going to do, narrate a 
 | --- | --- | --- |
 | List or search Drive files | `drive_files_list` | Sees the authorized account's entire Drive (own files + shared). See "Drive query syntax" below. |
 | Get file metadata | `drive_file_get` | Returns name, mimeType, parents, sharing link, modifiedTime. Does NOT return file contents — use the per-type read tool. |
-| Share a file with someone | `drive_permission_create` | **Only call when the user explicitly asks to share.** Don't volunteer it. Roles: `reader`, `commenter`, `writer`. |
-| Delete / trash a file | `drive_file_trash` | Moves to Drive Trash (recoverable 30 days). Works for files, folders, Docs, Sheets, and Slides. |
+| Share a file with someone | `drive_permission_create` | **Only call when the user explicitly asks to share.** Don't volunteer it. Roles: `reader`, `commenter`, `writer`. **Only works on files this plugin created** — anything else returns 403. |
+| Delete / trash a file | `drive_file_trash` | Moves to Drive Trash (recoverable 30 days). **Only works on files this plugin created** — anything else returns 403. |
+
+> **The plugin can read the whole Drive but may only mutate its own files.**
+> The OAuth grant is `drive.readonly` + `drive.file`: listing and reading cover
+> the account's own and shared files, but trash and share are limited to files
+> this plugin created (`docs_create`, `sheets_create`, `slides_create`). A 403
+> from `drive_file_trash` / `drive_permission_create` is the grant doing its
+> job, not a bug — report it and tell the user to act from the Drive UI. Never
+> retry, never hunt for another tool that might do the same thing.
+>
+> Editing the *contents* of an existing Doc/Sheet/Slides presentation is still
+> allowed (separate per-API scopes), so `docs_append_text` and
+> `sheets_values_append` work on files the user created by hand. Treat that as
+> the higher-risk path: it can't delete a file, but it can change what the file
+> says.
 
 > **Folder names are NOT folder IDs.** To access files in a folder you only know by name, you MUST do TWO calls:
 >
