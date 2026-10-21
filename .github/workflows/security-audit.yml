@@ -1,0 +1,52 @@
+name: Security audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/security-audit.yml'
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+  schedule:
+    # Catch advisories published against dependencies we already have pinned.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # --omit=dev deliberately: only the shipped dependency tree matters for a
+      # published plugin. Dev-only findings (vitest/vite/esbuild) are reported by
+      # Dependabot instead of blocking this gate.
+      - name: Audit production dependencies
+        run: |
+          # The default registry is the public one in Actions; --registry is
+          # explicit so a mirror configured in .npmrc cannot silently point the
+          # audit endpoint at a server without an advisories API.
+          npm audit --package-lock-only --omit=dev --audit-level=high \
+            --registry=https://registry.npmjs.org
+
+      - name: Report full audit (non-blocking)
+        if: always()
+        run: |
+          echo "### Full audit summary (informational)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm audit --package-lock-only --registry=https://registry.npmjs.org 2>&1 \
+            | tail -40 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

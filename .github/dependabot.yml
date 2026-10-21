@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # Runtime deps (googleapis / typebox) plus the dev toolchain.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Keep the type toolchain in one PR — typescript + vitest + @types/node
+      # tend to move together and are painful to rebase separately.
+      dev-toolchain:
+        patterns:
+          - "typescript"
+          - "vitest"
+          - "@types/node"
+      # googleapis pulls google-auth-library / gaxios / gtoken transitively;
+      # bumping them together keeps the auth stack consistent.
+      google-api-stack:
+        patterns:
+          - "googleapis"
+          - "google-auth-library"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(ci)"
